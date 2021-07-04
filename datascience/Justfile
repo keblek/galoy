@@ -1,0 +1,56 @@
+mongoid := `docker ps | rg mongodb | cut -d' '  -f1`
+db := "galoy"
+username := "testGaloy"
+password:= "password"
+pwd := `pwd`
+
+# Collections
+dbmetadatas-fields := "_id,minBuildNumber,lastBuildNumber,__v,routingFeeLastEntry"
+
+invoiceusers-fields := "_id,selfGenerated,paid,uid,pubkey,timestamp,__v"
+
+medici_journals-fields := "_id,memo_transactions,voided,approved,datetime,book,__v"
+
+medici_transactions-fields := "_id,fee,payee_addresses,feeUsd,account_path,voided,approved,accounts,credit,debit,book,memo,_journal,datetime,timestamp,type,pending,currency,currencies,__v"
+
+phonecodes-fields := "_id,phone,code,sms_provider,created_at,__v"
+
+users-fields := "_id,phone,__v,username,contacts,depositFeeRatio,deviceToken,earn,excludeCashback,language,lastIPs,level,onchain,role,status,withdrawFee"
+
+check:
+    echo "checking data folder"
+    ls | rg data
+    echo "checking programs"
+    which jq
+    which rg
+    which sd
+    which docker
+
+mdb-dbmetadata:
+    docker exec -i {{mongoid}} mongoexport --db {{db}} --username {{username}} --password {{password}} --collection dbmetadatas         --type=json --fields {{dbmetadatas-fields}}
+
+mdb-invoiceusers:
+    docker exec -i {{mongoid}} mongoexport --db {{db}} --username {{username}} --password {{password}} --collection invoiceusers        --type=json --fields {{invoiceusers-fields}}
+
+mdb-medicijournals:
+    docker exec -i {{mongoid}} mongoexport --db {{db}} --username {{username}} --password {{password}} --collection medici_journals     --type=json --fields {{medici_journals-fields}}
+
+mdb-phonecodes:
+    docker exec -i {{mongoid}} mongoexport --db {{db}} --username {{username}} --password {{password}} --collection phonecodes          --type=json --fields {{phonecodes-fields}}
+
+mdb-users:
+    docker exec -i {{mongoid}} mongoexport --db {{db}} --username {{username}} --password {{password}} --collection users               --type=json --fields {{users-fields}}
+
+mdb-medicitxs:
+    docker exec -i {{mongoid}} mongoexport --db {{db}} --username {{username}} --password {{password}} --collection medici_transactions --type=json --fields {{medici_transactions-fields}}
+
+mdb-mtxs-json2csv:
+    just mdb-medicitxs | sd  "\\$" "" | jq -s -r '.[] | [._id.oid, .datetime.date, .timestamp.date, .feeUsd, .credit, .debit, .currency, .type, .memo, .accounts] | @csv'
+
+run-ds-env:
+    echo "make sure to build the image locally first with docker build -t datasciencenb/galoytests ."
+    echo "run this command in the docker container"
+    echo "opt/conda/bin/jupyter notebook --notebook-dir=/data --ip='*' --port=8888 --no-browser --allow-root"
+    docker run -i -t -v {{pwd}}/data/:/data -p 8888:8888 datasciencenb/galoytests
+
+
